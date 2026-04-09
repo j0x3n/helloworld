@@ -45,9 +45,9 @@ jobs:
 
       - name: Download and extract OpenWrt 25.12 SDK
         run: |
-          wget -q https://downloads.openwrt.org/releases/25.12.0/targets/mvebu/cortexa53/openwrt-sdk-25.12.0-mvebu-cortexa53_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-          zstd -d openwrt-sdk-25.12.0-mvebu-cortexa53_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-          tar -xf openwrt-sdk-25.12.0-mvebu-cortexa53_gcc-13.3.0_musl.Linux-x86_64.tar
+          wget -q https://downloads.openwrt.org/releases/25.12.0/targets/rockchip/armv8/openwrt-sdk-25.12.0-rockchip-armv8_gcc-14.3.0_musl.Linux-x86_64.tar.zst
+          zstd -d openwrt-sdk-25.12.0-rockchip-armv8_gcc-14.3.0_musl.Linux-x86_64.tar.zst
+          tar -xf openwrt-sdk-25.12.0-rockchip-armv8_gcc-14.3.0_musl.Linux-x86_64.tar
           mv openwrt-sdk-* sdk
 
       - name: Configure feeds
