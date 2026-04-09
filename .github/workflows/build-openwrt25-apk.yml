@@ -30,18 +30,34 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            zstd \
             build-essential \
-            libncurses5-dev \
+            clang \
+            flex \
+            bison \
+            g++ \
             gawk \
-            git \
+            gcc-multilib \
+            g++-multilib \
             gettext \
+            git \
+            libfuse-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
             libssl-dev \
+            python3 \
+            python3-distutils \
+            python3-setuptools \
             rsync \
             unzip \
             wget \
-            python3 \
-            python3-distutils || true
+            zstd \
+            file \
+            patch \
+            time \
+            xsltproc \
+            zlib1g-dev \
+            libelf-dev \
+            swig
 
       - name: Download and extract OpenWrt SDK
         run: |
