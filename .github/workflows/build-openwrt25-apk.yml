@@ -43,12 +43,35 @@ jobs:
             python3 \
             python3-distutils || true
 
-      - name: Download and extract OpenWrt 25.12 SDK
+      - name: Download and extract OpenWrt SDK
         run: |
-          wget -q https://downloads.openwrt.org/releases/25.12.0/targets/rockchip/armv8/openwrt-sdk-25.12.0-rockchip-armv8_gcc-14.3.0_musl.Linux-x86_64.tar.zst
-          zstd -d openwrt-sdk-25.12.0-rockchip-armv8_gcc-14.3.0_musl.Linux-x86_64.tar.zst
-          tar -xf openwrt-sdk-25.12.0-rockchip-armv8_gcc-14.3.0_musl.Linux-x86_64.tar
-          mv openwrt-sdk-* sdk
+          SDK_URL="https://downloads.openwrt.org/releases/25.12.0/targets/rockchip/armv8/openwrt-sdk-25.12.0-rockchip-armv8_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
+          SDK_ARCHIVE="openwrt-sdk.tar.zst"
+
+          echo "Downloading SDK..."
+          wget -q --show-progress -O "$SDK_ARCHIVE" "$SDK_URL"
+          echo "Download complete: $(du -sh $SDK_ARCHIVE)"
+
+          echo "Extracting SDK..."
+          # 先用 zstd 解压为 tar，再用 tar 解包
+          zstd -d "$SDK_ARCHIVE" -o openwrt-sdk.tar
+          rm -f "$SDK_ARCHIVE"
+          tar -xf openwrt-sdk.tar
+          rm -f openwrt-sdk.tar
+
+          echo "Listing extracted contents:"
+          ls -la | grep openwrt-sdk
+
+          # 找到解压出的目录并重命名
+          SDK_DIR=$(ls -d openwrt-sdk-*/ 2>/dev/null | head -1)
+          if [ -z "$SDK_DIR" ]; then
+            echo "ERROR: SDK directory not found after extraction!"
+            ls -la
+            exit 1
+          fi
+          echo "Found SDK directory: $SDK_DIR"
+          mv "$SDK_DIR" sdk
+          echo "SDK ready at: $(pwd)/sdk"
 
       - name: Configure feeds
         run: |
