@@ -1,0 +1,122 @@
+name: Build OpenWrt 25.12 APK (aarch64_cortex-a53)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Build aarch64_cortex-a53 APK packages
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            zstd \
+            build-essential \
+            libncurses5-dev \
+            gawk \
+            git \
+            gettext \
+            libssl-dev \
+            rsync \
+            unzip \
+            wget \
+            python3 \
+            python3-distutils || true
+
+      - name: Download and extract OpenWrt 25.12 SDK
+        run: |
+          wget -q https://downloads.openwrt.org/releases/25.12.0/targets/mvebu/cortexa53/openwrt-sdk-25.12.0-mvebu-cortexa53_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+          zstd -d openwrt-sdk-25.12.0-mvebu-cortexa53_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+          tar -xf openwrt-sdk-25.12.0-mvebu-cortexa53_gcc-13.3.0_musl.Linux-x86_64.tar
+          mv openwrt-sdk-* sdk
+
+      - name: Configure feeds
+        run: |
+          echo "src-link helloworld $GITHUB_WORKSPACE" > sdk/feeds.conf.default
+          cd sdk
+          ./scripts/feeds update -a
+          ./scripts/feeds update helloworld
+          ./scripts/feeds install -a -p helloworld
+
+      - name: Generate default config
+        run: |
+          cd sdk
+          make defconfig
+
+      - name: Compile luci-app-ssr-plus
+        run: |
+          cd sdk
+          make package/luci-app-ssr-plus/compile V=s -j$(nproc) || \
+          make package/luci-app-ssr-plus/compile V=s -j1
+
+      - name: Compile shadowsocksr-libev
+        run: |
+          cd sdk
+          make package/shadowsocksr-libev/compile V=s -j$(nproc) || \
+          make package/shadowsocksr-libev/compile V=s -j1
+
+      - name: Compile shadowsocks-libev
+        run: |
+          cd sdk
+          make package/shadowsocks-libev/compile V=s -j$(nproc) || \
+          make package/shadowsocks-libev/compile V=s -j1
+
+      - name: Compile shadowsocks-rust
+        run: |
+          cd sdk
+          make package/shadowsocks-rust/compile V=s -j$(nproc) || \
+          make package/shadowsocks-rust/compile V=s -j1
+
+      - name: Compile v2ray-core
+        run: |
+          cd sdk
+          make package/v2ray-core/compile V=s -j$(nproc) || \
+          make package/v2ray-core/compile V=s -j1
+
+      - name: Compile xray-core
+        run: |
+          cd sdk
+          make package/xray-core/compile V=s -j$(nproc) || \
+          make package/xray-core/compile V=s -j1
+
+      - name: Compile chinadns-ng
+        run: |
+          cd sdk
+          make package/chinadns-ng/compile V=s -j$(nproc) || \
+          make package/chinadns-ng/compile V=s -j1
+
+      - name: Compile hysteria
+        run: |
+          cd sdk
+          make package/hysteria/compile V=s -j$(nproc) || \
+          make package/hysteria/compile V=s -j1
+
+      - name: Collect APK packages
+        run: |
+          find sdk/bin/packages/ -name "*.apk" -exec cp {} . \; || true
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarch64_cortex-a53-openwrt25-apk-packages
+          path: "*.apk"
