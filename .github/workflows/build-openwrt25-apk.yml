@@ -91,10 +91,9 @@ jobs:
 
       - name: Configure feeds
         run: |
-          echo "src-link helloworld $GITHUB_WORKSPACE" > sdk/feeds.conf.default
           cd sdk
+          echo "src-link helloworld $GITHUB_WORKSPACE" >> feeds.conf.default
           ./scripts/feeds update -a
-          ./scripts/feeds update helloworld
           ./scripts/feeds install -a -p helloworld
 
       - name: Generate default config
@@ -104,62 +103,63 @@ jobs:
 
       - name: Compile luci-app-ssr-plus
         run: |
-          cd sdk
-          make package/luci-app-ssr-plus/compile V=s -j$(nproc) || \
-          make package/luci-app-ssr-plus/compile V=s -j1
+          set -o pipefail
+          cd sdk && make package/luci-app-ssr-plus/compile V=s -j$(nproc) 2>&1 | tail -20 || echo "FAILED: luci-app-ssr-plus"
 
       - name: Compile shadowsocksr-libev
         run: |
-          cd sdk
-          make package/shadowsocksr-libev/compile V=s -j$(nproc) || \
-          make package/shadowsocksr-libev/compile V=s -j1
+          set -o pipefail
+          cd sdk && make package/shadowsocksr-libev/compile V=s -j$(nproc) 2>&1 | tail -20 || echo "FAILED: shadowsocksr-libev"
 
       - name: Compile shadowsocks-libev
         run: |
-          cd sdk
-          make package/shadowsocks-libev/compile V=s -j$(nproc) || \
-          make package/shadowsocks-libev/compile V=s -j1
+          set -o pipefail
+          cd sdk && make package/shadowsocks-libev/compile V=s -j$(nproc) 2>&1 | tail -20 || echo "FAILED: shadowsocks-libev"
 
       - name: Compile shadowsocks-rust
         run: |
-          cd sdk
-          make package/shadowsocks-rust/compile V=s -j$(nproc) || \
-          make package/shadowsocks-rust/compile V=s -j1
+          set -o pipefail
+          cd sdk && make package/shadowsocks-rust/compile V=s -j$(nproc) 2>&1 | tail -20 || echo "FAILED: shadowsocks-rust"
 
       - name: Compile v2ray-core
         run: |
-          cd sdk
-          make package/v2ray-core/compile V=s -j$(nproc) || \
-          make package/v2ray-core/compile V=s -j1
+          set -o pipefail
+          cd sdk && make package/v2ray-core/compile V=s -j$(nproc) 2>&1 | tail -20 || echo "FAILED: v2ray-core"
 
       - name: Compile xray-core
         run: |
-          cd sdk
-          make package/xray-core/compile V=s -j$(nproc) || \
-          make package/xray-core/compile V=s -j1
+          set -o pipefail
+          cd sdk && make package/xray-core/compile V=s -j$(nproc) 2>&1 | tail -20 || echo "FAILED: xray-core"
 
       - name: Compile chinadns-ng
         run: |
-          cd sdk
-          make package/chinadns-ng/compile V=s -j$(nproc) || \
-          make package/chinadns-ng/compile V=s -j1
+          set -o pipefail
+          cd sdk && make package/chinadns-ng/compile V=s -j$(nproc) 2>&1 | tail -20 || echo "FAILED: chinadns-ng"
 
       - name: Compile hysteria
         run: |
-          cd sdk
-          make package/hysteria/compile V=s -j$(nproc) || \
-          make package/hysteria/compile V=s -j1
+          set -o pipefail
+          cd sdk && make package/hysteria/compile V=s -j$(nproc) 2>&1 | tail -20 || echo "FAILED: hysteria"
 
-      - name: List built packages
+      - name: List all compiled packages
         run: |
-          echo "=== Built APK packages ==="
-          find sdk/bin/packages/ -name "*.apk" 2>/dev/null | sort
-          echo "=== Total count ==="
-          find sdk/bin/packages/ -name "*.apk" 2>/dev/null | wc -l
+          echo "=== Searching for APK files ==="
+          find sdk/bin/ -name "*.apk" 2>/dev/null | sort || echo "No APK files found in sdk/bin/"
+          echo ""
+          echo "=== Searching for IPK files ==="
+          find sdk/bin/ -name "*.ipk" 2>/dev/null | sort || echo "No IPK files found"
+          echo ""
+          echo "=== Full sdk/bin directory structure ==="
+          find sdk/bin/ -type f 2>/dev/null | head -50 || echo "sdk/bin/ is empty or does not exist"
+          echo ""
+          echo "=== Build staging dir ==="
+          ls sdk/staging_dir/ 2>/dev/null || echo "staging_dir empty"
 
-      - name: Upload APK packages
+      - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
-          name: aarch64_cortex-a53-openwrt25-apk-packages
-          path: sdk/bin/packages/**/*.apk
+          name: openwrt25-aarch64_cortex-a53-packages
+          path: |
+            sdk/bin/packages/**/*.apk
+            sdk/bin/packages/**/*.ipk
           if-no-files-found: warn
