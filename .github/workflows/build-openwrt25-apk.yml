@@ -23,6 +23,7 @@ jobs:
             gcc-multilib g++-multilib gettext git \
             libfuse-dev libncurses5-dev libncursesw5-dev \
             libssl-dev python3 python3-dev \
+            python3-pyelftools \
             rsync unzip wget zstd file patch \
             xsltproc zlib1g-dev libelf-dev swig
 
@@ -83,6 +84,10 @@ jobs:
       - name: Build packages
         working-directory: sdk
         run: |
+          # 安装 prereq（忽略 uboot 等非目标包的失败）
+          echo "=== Running prereq ==="
+          make prereq 2>&1 | tail -30 || true
+
           PACKAGES=(
             luci-app-ssr-plus
             shadowsocks-libev
@@ -109,15 +114,30 @@ jobs:
             v2raya
             lua-neturl
           )
-          
+
+          SUCCESS=0
+          FAILED_LIST=""
+
           for pkg in "${PACKAGES[@]}"; do
             echo "=========================================="
             echo "Building: $pkg"
             echo "=========================================="
-            make package/${pkg}/compile V=s -j$(nproc) 2>&1 | tail -10 \
-              && echo "✅ SUCCESS: $pkg" \
-              || echo "❌ FAILED: $pkg (continuing...)"
+            if make package/${pkg}/compile V=s -j$(nproc) FORCE=1 2>&1 | tail -20; then
+              echo "✅ SUCCESS: $pkg"
+              SUCCESS=$((SUCCESS+1))
+            else
+              echo "❌ FAILED: $pkg"
+              FAILED_LIST="$FAILED_LIST $pkg"
+            fi
           done
+
+          echo ""
+          echo "=== Build Summary ==="
+          echo "SUCCESS: $SUCCESS"
+          echo "FAILED:$FAILED_LIST"
+          echo "=== All output files ==="
+          find bin/ -type f | sort
+          echo "Total: $(find bin/ -type f | wc -l) files"
 
       - name: Diagnose build results
         if: always()
