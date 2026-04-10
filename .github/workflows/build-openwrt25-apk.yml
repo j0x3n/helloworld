@@ -1,164 +1,134 @@
-name: Build OpenWrt 25.12 APK (aarch64_cortex-a53)
+name: Build OpenWrt 25.12 APK
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - master
+    branches: [ master ]
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build aarch64_cortex-a53 APK packages
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
+    
     steps:
-      - name: Free Disk Space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          path: helloworld
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential \
-            clang \
-            flex \
-            bison \
-            g++ \
-            gawk \
-            gcc-multilib \
-            g++-multilib \
-            gettext \
-            git \
-            libfuse-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libssl-dev \
-            python3 \
-            python3-dev \
-            rsync \
-            unzip \
-            wget \
-            zstd \
-            file \
-            patch \
-            time \
-            xsltproc \
-            zlib1g-dev \
-            libelf-dev \
-            swig
+            build-essential clang flex bison g++ gawk \
+            gcc-multilib g++-multilib gettext git \
+            libfuse-dev libncurses5-dev libncursesw5-dev \
+            libssl-dev python3 python3-dev \
+            rsync unzip wget zstd file patch \
+            xsltproc zlib1g-dev libelf-dev swig
 
       - name: Download and extract OpenWrt SDK
         run: |
           SDK_URL="https://downloads.openwrt.org/releases/25.12.0/targets/rockchip/armv8/openwrt-sdk-25.12.0-rockchip-armv8_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
-          SDK_ARCHIVE="openwrt-sdk.tar.zst"
-
-          echo "Downloading SDK..."
-          wget -q --show-progress -O "$SDK_ARCHIVE" "$SDK_URL"
-          echo "Download complete: $(du -sh $SDK_ARCHIVE)"
-
-          echo "Extracting SDK..."
-          # 先用 zstd 解压为 tar，再用 tar 解包
-          zstd -d "$SDK_ARCHIVE" -o openwrt-sdk.tar
-          rm -f "$SDK_ARCHIVE"
-          tar -xf openwrt-sdk.tar
-          rm -f openwrt-sdk.tar
-
-          echo "Listing extracted contents:"
-          ls -la | grep openwrt-sdk
-
-          # 找到解压出的目录并重命名
-          SDK_DIR=$(ls -d openwrt-sdk-*/ 2>/dev/null | head -1)
-          if [ -z "$SDK_DIR" ]; then
-            echo "ERROR: SDK directory not found after extraction!"
-            ls -la
-            exit 1
-          fi
-          echo "Found SDK directory: $SDK_DIR"
+          echo "Downloading SDK from: $SDK_URL"
+          wget -q --show-progress -O sdk.tar.zst "$SDK_URL"
+          echo "Download complete: $(du -sh sdk.tar.zst)"
+          echo "Extracting..."
+          tar -I zstd -xf sdk.tar.zst
+          rm -f sdk.tar.zst
+          SDK_DIR=$(ls -d openwrt-sdk-*/ | head -1)
+          echo "Found SDK dir: $SDK_DIR"
           mv "$SDK_DIR" sdk
-          echo "SDK ready at: $(pwd)/sdk"
+          echo "SDK ready."
 
-      - name: Configure feeds
+      - name: Setup feeds
+        working-directory: sdk
         run: |
-          echo "src-link helloworld $GITHUB_WORKSPACE" > sdk/feeds.conf.default
-          cd sdk
-          ./scripts/feeds update -a
-          ./scripts/feeds update helloworld
-          ./scripts/feeds install -a -p helloworld
+          echo "=== Original feeds.conf.default ==="
+          cat feeds.conf.default
+          
+          # 添加 helloworld 本地 feed
+          echo "src-link helloworld $GITHUB_WORKSPACE/helloworld" >> feeds.conf.default
+          
+          echo "=== Updated feeds.conf.default ==="
+          cat feeds.conf.default
+          
+          # 更新所有 feeds（luci, packages, routing 等官方 feed + helloworld）
+          ./scripts/feeds update -a 2>&1 | tail -20
+          
+          # 先安装所有官方 feed 包（提供 golang/host, rust/host, luci.mk 等依赖）
+          ./scripts/feeds install -a 2>&1 | tail -5
+          
+          # 再强制安装 helloworld 包（覆盖同名包）
+          ./scripts/feeds install -a -p helloworld -f 2>&1 | tail -5
+          
+          echo "=== Feeds directory ==="
+          ls package/feeds/
+          
+          echo "=== Check luci feed ==="
+          ls feeds/luci/ | head -5 || echo "WARNING: luci feed not found!"
+          
+          echo "=== Check packages feed ==="
+          ls feeds/packages/ | head -5 || echo "WARNING: packages feed not found!"
+          
+          make defconfig 2>&1 | grep -v "^#" | head -20
 
-      - name: Generate default config
+      - name: Build packages
+        working-directory: sdk
         run: |
-          cd sdk
-          make defconfig
-
-      - name: Compile luci-app-ssr-plus
-        run: |
-          cd sdk
-          make package/luci-app-ssr-plus/compile V=s -j$(nproc) || \
-          make package/luci-app-ssr-plus/compile V=s -j1
-
-      - name: Compile shadowsocksr-libev
-        run: |
-          cd sdk
-          make package/shadowsocksr-libev/compile V=s -j$(nproc) || \
-          make package/shadowsocksr-libev/compile V=s -j1
-
-      - name: Compile shadowsocks-libev
-        run: |
-          cd sdk
-          make package/shadowsocks-libev/compile V=s -j$(nproc) || \
-          make package/shadowsocks-libev/compile V=s -j1
-
-      - name: Compile shadowsocks-rust
-        run: |
-          cd sdk
-          make package/shadowsocks-rust/compile V=s -j$(nproc) || \
-          make package/shadowsocks-rust/compile V=s -j1
-
-      - name: Compile v2ray-core
-        run: |
-          cd sdk
-          make package/v2ray-core/compile V=s -j$(nproc) || \
-          make package/v2ray-core/compile V=s -j1
-
-      - name: Compile xray-core
-        run: |
-          cd sdk
-          make package/xray-core/compile V=s -j$(nproc) || \
-          make package/xray-core/compile V=s -j1
-
-      - name: Compile chinadns-ng
-        run: |
-          cd sdk
-          make package/chinadns-ng/compile V=s -j$(nproc) || \
-          make package/chinadns-ng/compile V=s -j1
-
-      - name: Compile hysteria
-        run: |
-          cd sdk
-          make package/hysteria/compile V=s -j$(nproc) || \
-          make package/hysteria/compile V=s -j1
+          PACKAGES=(
+            luci-app-ssr-plus
+            shadowsocks-libev
+            shadowsocks-rust
+            shadowsocksr-libev
+            v2ray-core
+            v2ray-plugin
+            xray-core
+            xray-plugin
+            hysteria
+            tuic-client
+            naiveproxy
+            trojan
+            shadow-tls
+            chinadns-ng
+            mosdns
+            dnsproxy
+            dns2socks
+            ipt2socks
+            microsocks
+            redsocks2
+            simple-obfs
+            tcping
+            v2raya
+            lua-neturl
+          )
+          
+          for pkg in "${PACKAGES[@]}"; do
+            echo "=========================================="
+            echo "Building: $pkg"
+            echo "=========================================="
+            make package/${pkg}/compile V=s -j$(nproc) 2>&1 | tail -10 \
+              && echo "✅ SUCCESS: $pkg" \
+              || echo "❌ FAILED: $pkg (continuing...)"
+          done
 
       - name: List built packages
         run: |
-          echo "=== Built APK packages ==="
-          find sdk/bin/packages/ -name "*.apk" 2>/dev/null | sort
-          echo "=== Total count ==="
-          find sdk/bin/packages/ -name "*.apk" 2>/dev/null | wc -l
+          echo "=== APK packages built ==="
+          find sdk/bin/ -name "*.apk" 2>/dev/null | sort
+          echo "=== Total APK count ==="
+          find sdk/bin/ -name "*.apk" 2>/dev/null | wc -l
 
-      - name: Upload APK packages
+      - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
-          name: aarch64_cortex-a53-openwrt25-apk-packages
+          name: openwrt25-aarch64-cortex-a53-packages
           path: sdk/bin/packages/**/*.apk
           if-no-files-found: warn
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt25-build-logs
+          path: sdk/logs/
+          if-no-files-found: ignore
