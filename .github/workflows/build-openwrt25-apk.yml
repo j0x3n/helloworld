@@ -72,6 +72,14 @@ jobs:
           
           make defconfig 2>&1 | grep -v "^#" | head -20
 
+      - name: Build test package (chinadns-ng)
+        working-directory: sdk
+        run: |
+          echo "=== Trying to build chinadns-ng ==="
+          make package/chinadns-ng/compile V=s 2>&1; echo "=== Exit code: $? ==="
+          echo "=== Files in bin/ after build ==="
+          find bin/ -type f 2>/dev/null | sort || echo "Still empty"
+
       - name: Build packages
         working-directory: sdk
         run: |
@@ -110,6 +118,49 @@ jobs:
               && echo "✅ SUCCESS: $pkg" \
               || echo "❌ FAILED: $pkg (continuing...)"
           done
+
+      - name: Diagnose build results
+        if: always()
+        working-directory: sdk
+        run: |
+          echo "====== FULL SDK BIN CONTENTS ======"
+          find bin/ -type f 2>/dev/null | sort || echo "bin/ dir empty or missing"
+          
+          echo "====== CHECK FEEDS INSTALLED ======"
+          ls package/feeds/ 2>/dev/null || echo "package/feeds/ missing"
+          
+          echo "====== CHECK LUCI FEED ======"
+          ls feeds/luci/ 2>/dev/null | head -10 || echo "feeds/luci/ MISSING"
+          
+          echo "====== CHECK PACKAGES FEED ======"
+          ls feeds/packages/ 2>/dev/null | head -10 || echo "feeds/packages/ MISSING"
+          
+          echo "====== GO VERSION ======"
+          go version 2>/dev/null || echo "go NOT FOUND"
+          which go || echo "go not in PATH"
+          
+          echo "====== RUST VERSION ======"
+          rustc --version 2>/dev/null || echo "rustc NOT FOUND"
+          
+          echo "====== SDK GOLANG STAGING ======"
+          ls staging_dir/host/bin/go* 2>/dev/null || echo "No go in staging_dir/host/bin/"
+          
+          echo "====== LAST BUILD LOG (chinadns-ng) ======"
+          log_files=$(find logs/ -name "*.txt" 2>/dev/null | head -5)
+          if [ -n "$log_files" ]; then
+            echo "$log_files" | while read f; do
+              echo "--- $f ---"
+              tail -30 "$f"
+            done
+          else
+            echo "No log files in logs/"
+          fi
+          
+          echo "====== BUILD DIR CHECK ======"
+          ls build_dir/ 2>/dev/null | head -20 || echo "build_dir/ missing"
+          
+          echo "====== FEEDS CONF ======"
+          cat feeds.conf.default
 
       - name: List built packages
         run: |
