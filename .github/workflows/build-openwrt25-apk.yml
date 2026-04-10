@@ -150,12 +150,16 @@ jobs:
           make package/hysteria/compile V=s -j$(nproc) || \
           make package/hysteria/compile V=s -j1
 
-      - name: Collect APK packages
+      - name: List built packages
         run: |
-          find sdk/bin/packages/ -name "*.apk" -exec cp {} . \; || true
+          echo "=== Built APK packages ==="
+          find sdk/bin/packages/ -name "*.apk" 2>/dev/null | sort
+          echo "=== Total count ==="
+          find sdk/bin/packages/ -name "*.apk" 2>/dev/null | wc -l
 
-      - name: Upload APK artifacts
+      - name: Upload APK packages
         uses: actions/upload-artifact@v4
         with:
           name: aarch64_cortex-a53-openwrt25-apk-packages
-          path: "*.apk"
+          path: sdk/bin/packages/**/*.apk
+          if-no-files-found: warn
